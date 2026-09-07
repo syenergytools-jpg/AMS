@@ -1,0 +1,37 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL: ${NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL: ${NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL}
+      # Server-only secret — never a build arg, so it never ends up baked into
+      # an image layer. Supplied purely at container-start time.
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+  # Optional — only starts with `docker compose --profile zkteco up -d`.
+  # Only useful on a host with real network access to the K50 (see
+  # Dockerfile.zkteco-sync and the README's ZKTeco section).
+  zkteco-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.zkteco-sync
+    restart: unless-stopped
+    profiles: ["zkteco"]
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ZKTECO_DEVICE_IP: ${ZKTECO_DEVICE_IP}
+      ZKTECO_DEVICE_PORT: ${ZKTECO_DEVICE_PORT:-4370}
+      ZKTECO_COMM_KEY: ${ZKTECO_COMM_KEY:-0}
+      ZKTECO_POLL_INTERVAL_SECONDS: ${ZKTECO_POLL_INTERVAL_SECONDS:-60}
+      ZKTECO_LOOKBACK_DAYS: ${ZKTECO_LOOKBACK_DAYS:-2}

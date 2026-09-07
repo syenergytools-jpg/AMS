@@ -91,6 +91,70 @@ update public.profiles set role = 'ADMIN' where email = 'someone@evolutecomsolut
 
 ---
 
+## Deploy with Docker (VPS)
+
+The app builds into a small, self-contained image using Next.js's `standalone` output — no
+`node_modules` copied in, just the traced runtime files.
+
+### The one thing to get right: build-time vs. runtime variables
+`NEXT_PUBLIC_*` variables are baked into the compiled JavaScript at **build** time — Next.js
+can't read them from the running container later. `SUPABASE_SERVICE_ROLE_KEY` is the opposite:
+it's server-only and must **never** be a build argument (build args can end up cached in image
+layers), so it's supplied purely at container-start time instead. The `Dockerfile` and
+`docker-compose.yml` here already split them this way — you shouldn't need to think about it
+beyond filling in `.env` correctly.
+
+### Easiest: Docker Compose
+```bash
+cp .env.local.example .env   # if you don't already have one — see Quick start above
+docker compose build
+docker compose up -d
+```
+That's `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+and `NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL` all read from `.env` automatically — the app is now
+running on port 3000.
+
+### Without Compose
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://YOUR-ref.supabase.co \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
+  --build-arg NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL=admin@evolutecomsolutions.com \
+  -t evolut-attendance .
+
+docker run -d --name evolut-attendance -p 3000:3000 \
+  -e NEXT_PUBLIC_SUPABASE_URL=https://YOUR-ref.supabase.co \
+  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
+  -e NEXT_PUBLIC_BOOTSTRAP_ADMIN_EMAIL=admin@evolutecomsolutions.com \
+  -e SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
+  --restart unless-stopped \
+  evolut-attendance
+```
+
+### Put it behind a domain with HTTPS
+The container only serves plain HTTP on port 3000. Put a reverse proxy in front of it — Caddy is
+the least fuss (automatic Let's Encrypt certs from one line: `attendance.evolutecomsolutions.com { reverse_proxy localhost:3000 }`),
+or Nginx + Certbot if you'd rather. Either way, point its DNS **A record** at your VPS's IP.
+
+### Updating a running deployment
+```bash
+git pull
+docker compose build web
+docker compose up -d web
+```
+
+### The ZKTeco sync script, containerized
+`Dockerfile.zkteco-sync` packages `scripts/zkteco-sync.js` the same way. It's an optional Compose
+profile, not part of the default `docker compose up`:
+```bash
+docker compose --profile zkteco up -d zkteco-sync
+```
+Containerizing it doesn't change the physical requirement covered below: it still has to run on a
+host that's genuinely on the same local network as the K50 (or bridged to it via a VPN like
+Tailscale) — that's almost certainly a small machine in the office, **not** the VPS running `web`.
+
+---
+
 ## ZKTeco K50 fingerprint sync (optional)
 
 The K50 is a standalone LAN device — it can't reach Supabase itself, and Supabase can't reach a
@@ -143,6 +207,8 @@ src/
     data.ts, format.ts, types.ts
 scripts/zkteco-sync.js              # optional: K50 fingerprint device bridge
 supabase/schema.sql                 # run once in Supabase
+Dockerfile, docker-compose.yml      # containerized web app (VPS deploy)
+Dockerfile.zkteco-sync              # optional: containerized K50 bridge
 ```
 
 ## Notes

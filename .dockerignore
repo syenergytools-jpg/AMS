@@ -1,0 +1,25 @@
+node_modules
+.next
+out
+build
+npm-debug.log*
+
+# Secrets — never let these into the build context. Runtime env vars are
+# injected via `docker run -e` / docker-compose `environment:`/`env_file:`,
+# and NEXT_PUBLIC_* build-time vars via `--build-arg` (see Dockerfile).
+.env
+.env.local
+.env*.local
+
+.git
+.gitignore
+.claude
+.dockerignore
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+README.md
+
+*.log
+.DS_Store
+tsconfig.tsbuildinfo

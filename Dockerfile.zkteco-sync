@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+
+# Bridges a ZKTeco K50 fingerprint terminal to Supabase — see
+# scripts/zkteco-sync.js for the full explanation of what this does.
+#
+# IMPORTANT: this only works on a host that's on the SAME LOCAL NETWORK as
+# the physical K50 (or bridged to it via a VPN like Tailscale). Running it
+# "in Docker" doesn't change that — it still needs real network access to
+# the device's LAN IP, so this image is meant for a small always-on machine
+# in the office, not the VPS hosting the web app (see README).
+FROM node:20-alpine
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY scripts/zkteco-sync.js ./scripts/zkteco-sync.js
+
+CMD ["node", "scripts/zkteco-sync.js"]
