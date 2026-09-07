@@ -1,24 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 
 export function SignOutButton() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
   async function signOut() {
+    setLoading(true);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.replace("/login");
     router.refresh();
   }
+
   return (
     <button
       onClick={signOut}
-      className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-navy"
+      disabled={loading}
+      className="group flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600 disabled:cursor-wait disabled:opacity-60"
     >
-      <LogOut className="h-4 w-4" />
-      <span className="hidden sm:inline">Sign out</span>
+      {loading ? (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+      ) : (
+        <LogOut className="h-4 w-4 shrink-0 transition group-hover:translate-x-0.5" />
+      )}
+      {loading ? "Signing out…" : "Sign out"}
     </button>
   );
 }

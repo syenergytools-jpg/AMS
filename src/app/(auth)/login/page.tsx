@@ -19,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
@@ -29,7 +29,14 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.replace("/dashboard");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    router.replace(profile?.role === "ADMIN" ? "/admin" : "/dashboard");
     router.refresh();
   }
 

@@ -57,7 +57,7 @@ export default function RegisterPage() {
       router.push("/login");
       return;
     }
-    router.replace("/dashboard");
+    router.replace(json.role === "ADMIN" ? "/admin" : "/dashboard");
     router.refresh();
   }
 

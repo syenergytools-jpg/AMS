@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/Avatar";
-import { StatusBadge } from "@/components/StatusBadge";
 import { DeviceMappingForm } from "./DeviceMappingForm";
-import { formatDate, formatTime, formatTimeOfDay, hoursBetween } from "@/lib/format";
-import type { Attendance, Profile } from "@/lib/types";
+import { AttendanceEditor } from "./AttendanceEditor";
+import { SalarySlipEditor } from "./SalarySlipEditor";
+import { EmployeeLeaveHistory } from "./EmployeeLeaveHistory";
+import { formatDate, formatTimeOfDay } from "@/lib/format";
+import type { Attendance, LeaveRequest, Profile, SalarySlip } from "@/lib/types";
 import { ArrowLeft, IdCard, Phone, MapPin, Building2, Mail, Briefcase, Clock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -17,19 +19,42 @@ export default async function EmployeeDetail({
 }) {
   const supabase = createClient();
 
-  const [{ data: profileData }, { data: attData }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", params.id).single(),
-    supabase
-      .from("attendance")
-      .select("*")
-      .eq("user_id", params.id)
-      .order("work_date", { ascending: false })
-      .limit(30),
-  ]);
+  const salaryLookback = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
+
+  const [{ data: profileData }, { data: attData }, { data: slipData }, { data: salaryAttData }, { data: leaveData }] =
+    await Promise.all([
+      supabase.from("profiles").select("*").eq("id", params.id).single(),
+      supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", params.id)
+        .order("work_date", { ascending: false })
+        .limit(30),
+      supabase
+        .from("salary_slips")
+        .select("*")
+        .eq("user_id", params.id)
+        .order("month", { ascending: false }),
+      // Wider window (not just the last 30 records) so the salary editor can
+      // compute accurate hours-worked-vs-expected for whichever month it's editing.
+      supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", params.id)
+        .gte("work_date", salaryLookback),
+      supabase
+        .from("leave_requests")
+        .select("*")
+        .eq("user_id", params.id)
+        .order("start_date", { ascending: false }),
+    ]);
 
   if (!profileData) notFound();
   const emp = profileData as Profile;
   const history = (attData ?? []) as Attendance[];
+  const slips = (slipData ?? []) as SalarySlip[];
+  const attendanceForSalary = (salaryAttData ?? []) as Attendance[];
+  const leaveRequests = (leaveData ?? []) as LeaveRequest[];
 
   return (
     <div className="space-y-6">
@@ -72,43 +97,16 @@ export default async function EmployeeDetail({
           </p>
         </div>
 
-        {/* Attendance history */}
-        <div className="card overflow-hidden lg:col-span-2">
-          <div className="border-b border-slate-100 px-6 py-4">
-            <h2 className="font-semibold text-navy">Attendance history</h2>
-            <p className="text-xs text-slate-400">Last 30 records</p>
-          </div>
-          {history.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-slate-400">
-              No attendance recorded yet.
-            </p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">In</th>
-                  <th className="px-6 py-3 font-medium">Out</th>
-                  <th className="px-6 py-3 font-medium">Hours</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {history.map((r) => (
-                  <tr key={r.id} className="text-slate-600">
-                    <td className="px-6 py-3 font-medium text-navy">{formatDate(r.work_date)}</td>
-                    <td className="px-6 py-3">{formatTime(r.check_in)}</td>
-                    <td className="px-6 py-3">{formatTime(r.check_out)}</td>
-                    <td className="px-6 py-3">{hoursBetween(r.check_in, r.check_out)}</td>
-                    <td className="px-6 py-3">
-                      <StatusBadge status={r.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <AttendanceEditor employeeId={emp.id} history={history} />
+        <SalarySlipEditor
+          employeeId={emp.id}
+          slips={slips}
+          attendance={attendanceForSalary}
+          leaveRequests={leaveRequests}
+          shiftStart={emp.shift_start}
+          shiftEnd={emp.shift_end}
+        />
+        <EmployeeLeaveHistory requests={leaveRequests} />
       </div>
     </div>
   );

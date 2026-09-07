@@ -62,6 +62,15 @@ function pktParts(date) {
   };
 }
 
+// Keep in sync with LATE_GRACE_MINUTES / isLateCheckIn in src/lib/format.ts —
+// this script runs standalone and can't import from the Next.js app.
+const LATE_GRACE_MINUTES = 30;
+
+function isLateCheckIn(hour, minute, shiftStart) {
+  const [shiftHour, shiftMinute] = (shiftStart || "09:00").split(":").map(Number);
+  return hour * 60 + minute > shiftHour * 60 + shiftMinute + LATE_GRACE_MINUTES;
+}
+
 async function syncOnce() {
   const { data: mapped, error: profErr } = await admin
     .from("profiles")
@@ -141,8 +150,7 @@ async function syncOnce() {
           : existing?.check_out ?? null;
 
       const { hour, minute } = pktParts(new Date(check_in));
-      const [shiftHour, shiftMinute] = (shiftStart || "09:00").split(":").map(Number);
-      const isLate = hour > shiftHour || (hour === shiftHour && minute > shiftMinute);
+      const isLate = isLateCheckIn(hour, minute, shiftStart);
 
       const { error: upsertErr } = await admin.from("attendance").upsert(
         {

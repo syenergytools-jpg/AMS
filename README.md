@@ -6,10 +6,14 @@ Built with **Next.js 14 (App Router) + TypeScript + Tailwind CSS + Supabase** (A
 ## Features
 
 - **Employee self-registration** — full name, work email, password, **CNIC**, **phone**, **address**, department, position, **shift start/end time**, and **profile photo**.
-- **One-tap check-in / check-out** with automatic *Late* detection (checking in after your own shift start).
+- **One-tap check-in / check-out** with automatic *Late* detection (checking in more than 30 minutes after your own shift start).
 - **Personal dashboard** — today's status, profile card, and 14-day attendance history.
+- **Monthly hours tab** — each employee sees a chart of hours worked per day this month against their shift target, plus working days/expected/completed/completion-% stats and a full daily breakdown table. Approved leave days show as their own "On leave" status (not Absent) and are excluded from expected hours.
 - **Admin overview** — live counts (present / late / not-in) and a real-time table of who's in today.
-- **Employee directory** — searchable cards with full profiles and per-employee 30-day attendance history.
+- **Employee directory** — searchable cards with full profiles and per-employee 30-day attendance history, with admin-editable check-in/check-out times for correcting or backfilling any day. Each employee's page also shows their leave history, with approve/reject directly there.
+- **Salary slips** — admin sets basic salary/allowances/deductions per employee per month; each employee gets a "Salary Slip" tab to view or download a PDF payslip (with an attendance summary for that month baked in). Deductions can be auto-calculated from attendance shortfall (short a full shift's hours costs one day's pay, proportionally).
+- **Company-wide Salary page (admin)** — every employee for the selected month in one table: basic/allowances/deductions/net pay and a Paid/Pending status at a glance, with the same salary editor expandable inline per row — no need to open each employee's profile individually.
+- **Leave requests** — employees request time off (date range, type, reason) from a "Leave" tab and can withdraw a request while it's still pending; admins review and approve/reject from their own "Leave" tab, with a banner on the admin overview when requests are waiting. Approved leave days are excluded entirely from that month's expected hours, so an excused absence never triggers the salary auto-deduction the way an unexcused one does.
 - **Role-based access** — employees see only their own data; admins see everyone (enforced by Postgres Row-Level Security).
 - **ZKTeco K50 fingerprint sync (optional)** — a bridge script pulls punches from a physical K50 terminal and turns them into check-in/check-out records automatically.
 - Clean, responsive UI in the Evolut navy brand palette.

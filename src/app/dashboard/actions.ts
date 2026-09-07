@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isLateCheckIn } from "@/lib/format";
 
 /** Current date & time in Pakistan Standard Time (UTC+5, no DST). */
 function nowPKT() {
@@ -29,9 +30,8 @@ export async function checkIn() {
     .single();
 
   const { iso, date, hour, minute } = nowPKT();
-  // Late if check-in is after the employee's own shift start time.
-  const [shiftHour, shiftMinute] = (profile?.shift_start ?? "09:30").split(":").map(Number);
-  const isLate = hour > shiftHour || (hour === shiftHour && minute > shiftMinute);
+  const checkInTime = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const isLate = isLateCheckIn(checkInTime, profile?.shift_start ?? "09:00");
 
   const { error } = await supabase.from("attendance").upsert(
     {
