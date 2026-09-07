@@ -37,6 +37,38 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Admin changes an employee's shift start/end time — e.g. after they move
+ * to a different shift. Only affects going forward: past attendance rows
+ * already have their PRESENT/LATE/ABSENT status locked in from whatever
+ * shift time was in effect when they were recorded. Salary calculations,
+ * however, always read the employee's *current* shift time when computed —
+ * even for a past month — so editing this can change an already-viewed
+ * month's expected-hours/deduction suggestion the next time it's opened.
+ */
+export async function updateEmployeeShift(employeeId: string, shiftStart: string, shiftEnd: string) {
+  await requireAdmin();
+  const supabase = createClient();
+
+  const timeRe = /^\d{2}:\d{2}$/;
+  if (!timeRe.test(shiftStart) || !timeRe.test(shiftEnd)) {
+    return { error: "Invalid time." };
+  }
+  if (timeToMinutes(shiftEnd) <= timeToMinutes(shiftStart)) {
+    return { error: "Shift end must be after shift start." };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ shift_start: shiftStart, shift_end: shiftEnd })
+    .eq("id", employeeId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/employees/${employeeId}`);
+  revalidatePath("/admin/salary");
+  return { ok: true };
+}
+
 /** Builds a UTC ISO timestamp from a PKT (UTC+5) work date + wall-clock time. */
 function pktToISOString(workDate: string, time: string): string {
   return new Date(`${workDate}T${time}:00+05:00`).toISOString();
@@ -84,5 +116,26 @@ export async function upsertAttendance(
 
   if (error) return { error: error.message };
   revalidatePath(`/admin/employees/${employeeId}`);
+  return { ok: true };
+}
+
+/**
+ * Admin removes an attendance record entirely (as opposed to clearing its
+ * times via upsertAttendance, which leaves an ABSENT row behind) — e.g. a
+ * duplicate device punch or a mistaken manual entry.
+ */
+export async function deleteAttendance(employeeId: string, workDate: string) {
+  await requireAdmin();
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("attendance")
+    .delete()
+    .eq("user_id", employeeId)
+    .eq("work_date", workDate);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/employees/${employeeId}`);
+  revalidatePath("/admin/salary");
   return { ok: true };
 }

@@ -143,6 +143,10 @@ drop policy if exists "admin updates any attendance" on public.attendance;
 create policy "admin updates any attendance" on public.attendance
   for update using (public.is_admin()) with check (public.is_admin());
 
+drop policy if exists "admin deletes any attendance" on public.attendance;
+create policy "admin deletes any attendance" on public.attendance
+  for delete using (public.is_admin());
+
 -- salary slips -----------------------------------------------------------------
 -- Employees can only ever read their own; only an admin creates or edits one.
 drop policy if exists "read own salary or admin reads all" on public.salary_slips;

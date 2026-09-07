@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { upsertAttendance } from "../actions";
+import { upsertAttendance, deleteAttendance } from "../actions";
 import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatTime, hoursBetween, isoToPktTimeInput, todayISO } from "@/lib/format";
 import type { Attendance } from "@/lib/types";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 interface EditState {
+  originalDate: string | null;
   date: string;
   checkIn: string;
   checkOut: string;
@@ -19,15 +20,21 @@ export function AttendanceEditor({ employeeId, history }: { employeeId: string; 
   const router = useRouter();
   const [modal, setModal] = useState<EditState | null>(null);
   const [pending, startTransition] = useTransition();
+  const [deleting, startDeleteTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   function openAdd() {
-    setModal({ date: "", checkIn: "", checkOut: "" });
+    setModal({ originalDate: null, date: "", checkIn: "", checkOut: "" });
     setError(null);
   }
 
   function openEdit(r: Attendance) {
-    setModal({ date: r.work_date, checkIn: isoToPktTimeInput(r.check_in), checkOut: isoToPktTimeInput(r.check_out) });
+    setModal({
+      originalDate: r.work_date,
+      date: r.work_date,
+      checkIn: isoToPktTimeInput(r.check_in),
+      checkOut: isoToPktTimeInput(r.check_out),
+    });
     setError(null);
   }
 
@@ -42,6 +49,23 @@ export function AttendanceEditor({ employeeId, history }: { employeeId: string; 
     setError(null);
     startTransition(async () => {
       const res = await upsertAttendance(employeeId, modal.date, modal.checkIn, modal.checkOut);
+      if (res?.error) {
+        setError(res.error);
+      } else {
+        router.refresh();
+        closeModal();
+      }
+    });
+  }
+
+  function onDelete() {
+    if (!modal?.originalDate) return;
+    if (!window.confirm(`Delete the attendance record for ${formatDate(modal.originalDate)}? This can't be undone.`)) {
+      return;
+    }
+    setError(null);
+    startDeleteTransition(async () => {
+      const res = await deleteAttendance(employeeId, modal.originalDate!);
       if (res?.error) {
         setError(res.error);
       } else {
@@ -140,13 +164,28 @@ export function AttendanceEditor({ employeeId, history }: { employeeId: string; 
               </div>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={closeModal} className="btn-ghost">
-                Cancel
-              </button>
-              <button type="submit" disabled={pending} className="btn-primary">
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-              </button>
+            <div className="flex items-center justify-between gap-2 pt-2">
+              {modal.originalDate ? (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={deleting || pending}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Delete
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={closeModal} className="btn-ghost">
+                  Cancel
+                </button>
+                <button type="submit" disabled={pending || deleting} className="btn-primary">
+                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </button>
+              </div>
             </div>
           </form>
         </Modal>
