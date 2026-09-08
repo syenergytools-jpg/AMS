@@ -7,6 +7,7 @@ export function formatTime(value: string | null): string {
   return new Date(value).toLocaleTimeString("en-PK", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Karachi",
   });
 }
 
@@ -17,6 +18,7 @@ export function formatDate(value: string | null): string {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Karachi",
   });
 }
 
