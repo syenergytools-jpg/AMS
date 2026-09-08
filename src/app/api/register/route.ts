@@ -11,13 +11,24 @@ export async function POST(request: Request) {
     const cnic = String(form.get("cnic") || "").trim();
     const phone = String(form.get("phone") || "").trim();
     const address = String(form.get("address") || "").trim();
-    const department = String(form.get("department") || "").trim() || null;
-    const position = String(form.get("position") || "").trim() || null;
+    const department = String(form.get("department") || "").trim();
+    const position = String(form.get("position") || "").trim();
     const shift_start = String(form.get("shift_start") || "").trim();
     const shift_end = String(form.get("shift_end") || "").trim();
     const photo = form.get("photo") as File | null;
 
-    if (!email || !password || !full_name || !cnic || !phone || !address || !shift_start || !shift_end) {
+    if (
+      !email ||
+      !password ||
+      !full_name ||
+      !cnic ||
+      !phone ||
+      !address ||
+      !department ||
+      !position ||
+      !shift_start ||
+      !shift_end
+    ) {
       return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
     }
     if (password.length < 6) {

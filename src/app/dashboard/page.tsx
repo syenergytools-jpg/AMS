@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/data";
 import { AttendanceWidget } from "./AttendanceWidget";
+import { EditProfileButton } from "./EditProfileButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { formatDate, formatTime, formatTimeOfDay, hoursBetween } from "@/lib/format";
@@ -48,14 +49,17 @@ export default async function DashboardPage() {
 
         {/* Profile card */}
         <div className="card p-6">
-          <div className="flex items-center gap-3">
-            <Avatar name={profile.full_name} src={profile.avatar_url} size={52} />
-            <div>
-              <div className="font-semibold text-navy">{profile.full_name}</div>
-              <div className="text-sm text-slate-400">
-                {profile.position || "Employee"}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar name={profile.full_name} src={profile.avatar_url} size={52} />
+              <div>
+                <div className="font-semibold text-navy">{profile.full_name}</div>
+                <div className="text-sm text-slate-400">
+                  {profile.position || "Employee"}
+                </div>
               </div>
             </div>
+            <EditProfileButton profile={profile} />
           </div>
           <dl className="mt-5 space-y-3 text-sm">
             <Detail icon={<IdCard className="h-4 w-4" />} value={profile.cnic} />

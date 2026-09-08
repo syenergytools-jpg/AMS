@@ -157,11 +157,11 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="label">Department</label>
-            <input name="department" className="input" placeholder="Operations" />
+            <input name="department" required className="input" placeholder="Operations" />
           </div>
           <div>
             <label className="label">Position</label>
-            <input name="position" className="input" placeholder="Account Manager" />
+            <input name="position" required className="input" placeholder="Account Manager" />
           </div>
           <div>
             <label className="label">Shift start</label>
