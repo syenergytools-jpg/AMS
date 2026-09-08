@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, createVerifyClient } from "@/lib/supabase/server";
 import { isLateCheckIn } from "@/lib/format";
 
 /** Current date & time in Pakistan Standard Time (UTC+5, no DST). */
@@ -91,6 +91,37 @@ export async function updateMyProfile(formData: FormData) {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/**
+ * Employee changes their own password, re-verifying the current one first
+ * so a session left open on an unattended device can't be used to silently
+ * take it over. Verification runs on a cookie-less client so it can't
+ * disturb the active session, then the real update goes through the
+ * request's own authenticated client.
+ */
+export async function changeMyPassword(oldPassword: string, newPassword: string) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return { error: "Not signed in." };
+
+  if (!oldPassword || !newPassword) return { error: "Please fill in all fields." };
+  if (newPassword.length < 6) return { error: "New password must be at least 6 characters." };
+  if (newPassword === oldPassword) return { error: "New password must be different from the current one." };
+
+  const verifyClient = createVerifyClient();
+  const { error: verifyErr } = await verifyClient.auth.signInWithPassword({
+    email: user.email,
+    password: oldPassword,
+  });
+  if (verifyErr) return { error: "Current password is incorrect." };
+
+  const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword });
+  if (updateErr) return { error: updateErr.message };
+
   return { ok: true };
 }
 

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/data";
 import { AttendanceWidget } from "./AttendanceWidget";
 import { EditProfileButton } from "./EditProfileButton";
+import { ChangePasswordButton } from "./ChangePasswordButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar } from "@/components/Avatar";
 import { formatDate, formatTime, formatTimeOfDay, hoursBetween } from "@/lib/format";
@@ -59,7 +60,10 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
-            <EditProfileButton profile={profile} />
+            <div className="flex items-center gap-0.5">
+              <ChangePasswordButton />
+              <EditProfileButton profile={profile} />
+            </div>
           </div>
           <dl className="mt-5 space-y-3 text-sm">
             <Detail icon={<IdCard className="h-4 w-4" />} value={profile.cnic} />

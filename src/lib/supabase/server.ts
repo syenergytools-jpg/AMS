@@ -42,3 +42,18 @@ export function createAdminClient() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
+
+/**
+ * Throwaway, cookie-less client. SERVER ONLY. Use for a one-off
+ * signInWithPassword credential check (e.g. verifying a user's current
+ * password before letting them set a new one) — it never persists a
+ * session or touches the active request's auth cookies.
+ */
+export function createVerifyClient() {
+  const { createClient: createSupabaseClient } = require("@supabase/supabase-js");
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
