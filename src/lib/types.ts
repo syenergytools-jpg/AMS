@@ -56,3 +56,15 @@ export interface LeaveRequest {
   reviewed_at: string | null;
   created_at: string;
 }
+
+export type NotificationType = "LEAVE_REQUESTED" | "LEAVE_APPROVED" | "LEAVE_REJECTED";
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  message: string;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}

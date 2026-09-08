@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { notifyAdmins } from "@/lib/notify";
+import { formatDate } from "@/lib/format";
 
 const LEAVE_TYPES = ["SICK", "CASUAL", "ANNUAL", "OTHER"];
 
@@ -39,6 +41,14 @@ export async function requestLeave(startDate: string, endDate: string, leaveType
   });
 
   if (error) return { error: error.message };
+
+  const employeeName = (user.user_metadata as { full_name?: string } | null)?.full_name || user.email || "An employee";
+  await notifyAdmins(
+    "LEAVE_REQUESTED",
+    `${employeeName} requested leave for ${formatDate(startDate)} – ${formatDate(endDate)}.`,
+    "/admin/leave"
+  );
+
   revalidatePath("/dashboard/leave");
   return { ok: true };
 }

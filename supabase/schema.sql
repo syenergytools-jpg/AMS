@@ -86,6 +86,21 @@ create index if not exists leave_requests_user_idx on public.leave_requests (use
 create index if not exists leave_requests_status_idx on public.leave_requests (status);
 
 -- ---------------------------------------------------------------------------
+-- 2d. NOTIFICATIONS  (in-app alerts — leave requested / approved / rejected)
+-- ---------------------------------------------------------------------------
+create table if not exists public.notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles (id) on delete cascade,
+  type        text not null check (type in ('LEAVE_REQUESTED', 'LEAVE_APPROVED', 'LEAVE_REJECTED')),
+  message     text not null,
+  link        text,
+  read_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
 -- 3. is_admin()  — SECURITY DEFINER avoids RLS recursion on profiles
 -- ---------------------------------------------------------------------------
 create or replace function public.is_admin()
@@ -107,6 +122,7 @@ alter table public.profiles      enable row level security;
 alter table public.attendance    enable row level security;
 alter table public.salary_slips  enable row level security;
 alter table public.leave_requests enable row level security;
+alter table public.notifications enable row level security;
 
 -- profiles -------------------------------------------------------------------
 drop policy if exists "read own or admin reads all" on public.profiles;
@@ -178,6 +194,19 @@ create policy "cancel own pending leave request" on public.leave_requests
 drop policy if exists "admin reviews any leave request" on public.leave_requests;
 create policy "admin reviews any leave request" on public.leave_requests
   for update using (public.is_admin()) with check (public.is_admin());
+
+-- notifications ------------------------------------------------------------
+drop policy if exists "read own notifications" on public.notifications;
+create policy "read own notifications" on public.notifications
+  for select using (user_id = auth.uid());
+
+drop policy if exists "mark own notifications read" on public.notifications;
+create policy "mark own notifications read" on public.notifications
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- INSERTs are done server-side with the service-role key: a notification's
+-- recipient is always someone OTHER than whoever triggered it (an employee
+-- notifying admins, or an admin notifying that employee), so there's no
+-- single auth.uid()-scoped insert policy that covers both directions.
 
 -- ---------------------------------------------------------------------------
 -- 5. STORAGE bucket for profile photos (public read)

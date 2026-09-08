@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/Avatar";
 import { SignOutButton } from "@/components/SignOutButton";
-import type { Profile } from "@/lib/types";
+import { NotificationBell } from "@/components/NotificationBell";
+import type { Notification, Profile } from "@/lib/types";
 import { LayoutDashboard, Users, ShieldCheck, BarChart3, Wallet, CalendarOff, Menu, X } from "lucide-react";
 
 function navItems(isAdmin: boolean) {
@@ -33,7 +34,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href;
 }
 
-export function Sidebar({ profile }: { profile: Profile }) {
+export function Sidebar({ profile, notifications = [] }: { profile: Profile; notifications?: Notification[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isAdmin = profile.role === "ADMIN";
@@ -42,10 +43,11 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   const body = (
     <div className="flex h-full flex-col">
-      <div className="px-5 py-6">
+      <div className="flex items-center justify-between px-5 py-6">
         <Link href={homeHref} onClick={() => setOpen(false)}>
-          <Logo />
+          <Logo size="lg" />
         </Link>
+        <NotificationBell initial={notifications} align="left" />
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map(({ href, label, icon: Icon }) => (
@@ -87,13 +89,16 @@ export function Sidebar({ profile }: { profile: Profile }) {
         <Link href={homeHref}>
           <Logo />
         </Link>
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="Open navigation"
-          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-navy"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell initial={notifications} />
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="Open navigation"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-navy"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile drawer */}

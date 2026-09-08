@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data";
+import { notifyUser } from "@/lib/notify";
+import { formatDate } from "@/lib/format";
 
 /**
  * Admin creates or edits an employee's salary slip for a given month
@@ -49,16 +51,30 @@ export async function reviewLeaveRequest(requestId: string, approve: boolean) {
   const admin = await requireAdmin();
   const supabase = createClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("leave_requests")
     .update({
       status: approve ? "APPROVED" : "REJECTED",
       reviewed_by: admin.id,
       reviewed_at: new Date().toISOString(),
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .select("user_id, start_date, end_date")
+    .single();
 
   if (error) return { error: error.message };
+
+  if (data) {
+    await notifyUser(
+      data.user_id,
+      approve ? "LEAVE_APPROVED" : "LEAVE_REJECTED",
+      `Your leave request for ${formatDate(data.start_date)} – ${formatDate(data.end_date)} was ${
+        approve ? "approved" : "rejected"
+      }.`,
+      "/dashboard/leave"
+    );
+  }
+
   revalidatePath("/admin/leave");
   return { ok: true };
 }
