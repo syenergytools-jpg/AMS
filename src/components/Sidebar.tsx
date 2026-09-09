@@ -8,7 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import type { Notification, Profile } from "@/lib/types";
-import { LayoutDashboard, Users, ShieldCheck, BarChart3, Wallet, CalendarOff, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, BarChart3, Wallet, CalendarOff, LifeBuoy, Menu, X } from "lucide-react";
 
 function navItems(isAdmin: boolean) {
   // Admins don't check in/out, so the personal dashboard & hours tracker aren't for them.
@@ -18,6 +18,7 @@ function navItems(isAdmin: boolean) {
       { href: "/admin/employees", label: "Employees", icon: Users },
       { href: "/admin/salary", label: "Salary", icon: Wallet },
       { href: "/admin/leave", label: "Leave", icon: CalendarOff },
+      { href: "/admin/support", label: "Support", icon: LifeBuoy },
     ];
   }
   return [
@@ -25,6 +26,7 @@ function navItems(isAdmin: boolean) {
     { href: "/dashboard/hours", label: "Monthly Hours", icon: BarChart3 },
     { href: "/dashboard/salary", label: "Salary Slip", icon: Wallet },
     { href: "/dashboard/leave", label: "Leave", icon: CalendarOff },
+    { href: "/dashboard/support", label: "Support", icon: LifeBuoy },
   ];
 }
 

@@ -78,3 +78,35 @@ export async function reviewLeaveRequest(requestId: string, approve: boolean) {
   revalidatePath("/admin/leave");
   return { ok: true };
 }
+
+/** Admin marks an employee's complaint resolved, with an optional reply. */
+export async function resolveComplaint(complaintId: string, resolution: string) {
+  const admin = await requireAdmin();
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("complaints")
+    .update({
+      status: "RESOLVED",
+      resolution: resolution.trim() || null,
+      resolved_by: admin.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", complaintId)
+    .select("user_id, subject")
+    .single();
+
+  if (error) return { error: error.message };
+
+  if (data) {
+    await notifyUser(
+      data.user_id,
+      "COMPLAINT_RESOLVED",
+      `Your complaint "${data.subject}" has been resolved.`,
+      "/dashboard/support"
+    );
+  }
+
+  revalidatePath("/admin/support");
+  return { ok: true };
+}

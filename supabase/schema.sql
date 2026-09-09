@@ -100,6 +100,37 @@ create table if not exists public.notifications (
 
 create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
 
+-- Widen the type check to also cover complaint notifications (added later —
+-- re-running this against a DB that already has the notifications table
+-- from before needs the constraint explicitly replaced, not just declared).
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in (
+    'LEAVE_REQUESTED', 'LEAVE_APPROVED', 'LEAVE_REJECTED',
+    'COMPLAINT_SUBMITTED', 'COMPLAINT_RESOLVED'
+  ));
+
+-- ---------------------------------------------------------------------------
+-- 2e. COMPLAINTS  (employee-raised issues — e.g. "checkout not working" —
+-- admin-resolved, optionally tied to a specific date)
+-- ---------------------------------------------------------------------------
+create table if not exists public.complaints (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles (id) on delete cascade,
+  category      text not null default 'ATTENDANCE' check (category in ('ATTENDANCE', 'SALARY', 'LEAVE', 'OTHER')),
+  subject       text not null,
+  description   text not null,
+  related_date  date,
+  status        text not null default 'OPEN' check (status in ('OPEN', 'RESOLVED')),
+  resolution    text,
+  resolved_by   uuid references public.profiles (id),
+  resolved_at   timestamptz,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists complaints_user_idx on public.complaints (user_id);
+create index if not exists complaints_status_idx on public.complaints (status);
+
 -- ---------------------------------------------------------------------------
 -- 3. is_admin()  — SECURITY DEFINER avoids RLS recursion on profiles
 -- ---------------------------------------------------------------------------
@@ -123,6 +154,7 @@ alter table public.attendance    enable row level security;
 alter table public.salary_slips  enable row level security;
 alter table public.leave_requests enable row level security;
 alter table public.notifications enable row level security;
+alter table public.complaints enable row level security;
 
 -- profiles -------------------------------------------------------------------
 drop policy if exists "read own or admin reads all" on public.profiles;
@@ -207,6 +239,19 @@ create policy "mark own notifications read" on public.notifications
 -- recipient is always someone OTHER than whoever triggered it (an employee
 -- notifying admins, or an admin notifying that employee), so there's no
 -- single auth.uid()-scoped insert policy that covers both directions.
+
+-- complaints -----------------------------------------------------------------
+drop policy if exists "read own complaints or admin reads all" on public.complaints;
+create policy "read own complaints or admin reads all" on public.complaints
+  for select using (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists "insert own complaint" on public.complaints;
+create policy "insert own complaint" on public.complaints
+  for insert with check (user_id = auth.uid());
+
+drop policy if exists "admin resolves any complaint" on public.complaints;
+create policy "admin resolves any complaint" on public.complaints
+  for update using (public.is_admin()) with check (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- 5. STORAGE bucket for profile photos (public read)
