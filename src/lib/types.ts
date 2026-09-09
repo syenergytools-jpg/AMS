@@ -57,7 +57,12 @@ export interface LeaveRequest {
   created_at: string;
 }
 
-export type NotificationType = "LEAVE_REQUESTED" | "LEAVE_APPROVED" | "LEAVE_REJECTED";
+export type NotificationType =
+  | "LEAVE_REQUESTED"
+  | "LEAVE_APPROVED"
+  | "LEAVE_REJECTED"
+  | "COMPLAINT_SUBMITTED"
+  | "COMPLAINT_RESOLVED";
 
 export interface Notification {
   id: string;
@@ -66,5 +71,22 @@ export interface Notification {
   message: string;
   link: string | null;
   read_at: string | null;
+  created_at: string;
+}
+
+export type ComplaintCategory = "ATTENDANCE" | "SALARY" | "LEAVE" | "OTHER";
+export type ComplaintStatus = "OPEN" | "RESOLVED";
+
+export interface Complaint {
+  id: string;
+  user_id: string;
+  category: ComplaintCategory;
+  subject: string;
+  description: string;
+  related_date: string | null;
+  status: ComplaintStatus;
+  resolution: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
   created_at: string;
 }
