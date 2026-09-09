@@ -30,7 +30,12 @@ export default async function DashboardPage() {
     .limit(14);
 
   const history = (rows ?? []) as Attendance[];
-  const todayRecord = history.find((r) => r.work_date === today) ?? null;
+  // Prefer a still-open shift (checked in, not yet checked out) over a
+  // strict "work_date === today" match — an evening/night shift starting
+  // before midnight is filed under yesterday's date, so a same-day-only
+  // lookup would show "Check in" instead of "Check out" for someone who's
+  // still mid-shift after midnight.
+  const todayRecord = history.find((r) => r.check_in && !r.check_out) ?? history.find((r) => r.work_date === today) ?? null;
 
   const presentDays = history.filter((r) => r.status !== "ABSENT").length;
 

@@ -170,6 +170,10 @@ export function AttendanceEditor({ employeeId, history }: { employeeId: string; 
                 />
               </div>
             </div>
+            <p className="text-xs text-slate-400">
+              For an overnight shift, a check-out time earlier than check-in is recorded as the
+              next day.
+            </p>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={closeModal} className="btn-ghost">

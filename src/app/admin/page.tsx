@@ -14,6 +14,7 @@ export default async function AdminDashboard() {
   const admin = await requireAdmin();
   const supabase = createClient();
   const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() + 5 * 3600 * 1000 - 86_400_000).toISOString().slice(0, 10);
 
   const [{ data: profilesData }, { data: attendanceData }, { count: pendingLeaveCount }] = await Promise.all([
     supabase
@@ -21,16 +22,36 @@ export default async function AdminDashboard() {
       .select("*")
       .eq("role", "EMPLOYEE")
       .order("full_name"),
-    supabase.from("attendance").select("*").eq("work_date", today),
+    // Also pull yesterday's rows — an evening/night shift that started
+    // before midnight is filed under yesterday's work_date, so a
+    // today-only fetch would miss anyone still mid-shift after midnight.
+    supabase.from("attendance").select("*").in("work_date", [yesterday, today]),
     supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "PENDING"),
   ]);
 
   const employees = (profilesData ?? []) as Profile[];
   const attendance = (attendanceData ?? []) as Attendance[];
-  const byUser = new Map(attendance.map((a) => [a.user_id, a]));
 
-  const presentCount = attendance.filter((a) => a.check_in).length;
-  const lateCount = attendance.filter((a) => a.status === "LATE").length;
+  const recordsByUser = new Map<string, Attendance[]>();
+  for (const a of attendance) {
+    const list = recordsByUser.get(a.user_id);
+    if (list) list.push(a);
+    else recordsByUser.set(a.user_id, [a]);
+  }
+
+  // Per employee: an open shift (still checked in) takes priority over
+  // whatever's dated today, since that's the one actually relevant right
+  // now regardless of which calendar day it started on.
+  function currentRecordFor(userId: string): Attendance | undefined {
+    const recs = recordsByUser.get(userId);
+    if (!recs) return undefined;
+    return recs.find((r) => r.check_in && !r.check_out) ?? recs.find((r) => r.work_date === today);
+  }
+
+  const byUser = new Map(employees.map((e) => [e.id, currentRecordFor(e.id)]));
+
+  const presentCount = employees.filter((e) => byUser.get(e.id)?.check_in).length;
+  const lateCount = employees.filter((e) => byUser.get(e.id)?.status === "LATE").length;
   const absentCount = employees.length - presentCount;
 
   return (

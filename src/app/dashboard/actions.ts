@@ -132,12 +132,29 @@ export async function checkOut() {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { iso, date } = nowPKT();
+  // Find the open shift (checked in, not yet checked out) rather than
+  // assuming it's dated today — an evening/night shift that starts before
+  // midnight is still stored under yesterday's work_date, so a checkout
+  // after midnight would never match "today" and would silently update
+  // nothing.
+  const { data: openRecord, error: findErr } = await supabase
+    .from("attendance")
+    .select("id")
+    .eq("user_id", user.id)
+    .not("check_in", "is", null)
+    .is("check_out", null)
+    .order("work_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (findErr) return { error: findErr.message };
+  if (!openRecord) return { error: "You haven't checked in yet." };
+
+  const { iso } = nowPKT();
   const { error } = await supabase
     .from("attendance")
     .update({ check_out: iso })
-    .eq("user_id", user.id)
-    .eq("work_date", date);
+    .eq("id", openRecord.id);
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard");

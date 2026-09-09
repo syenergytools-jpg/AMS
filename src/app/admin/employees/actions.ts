@@ -74,6 +74,12 @@ function pktToISOString(workDate: string, time: string): string {
   return new Date(`${workDate}T${time}:00+05:00`).toISOString();
 }
 
+function addOneDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Admin correction for an employee's check-in/check-out on a given day.
  * Upserts the attendance row (creates it if the employee never punched at
@@ -92,19 +98,29 @@ export async function upsertAttendance(
 
   if (!workDate) return { error: "Pick a date." };
   if (checkOutTime && !checkInTime) return { error: "Set a check-in time first." };
-  if (checkInTime && checkOutTime && timeToMinutes(checkOutTime) <= timeToMinutes(checkInTime)) {
-    return { error: "Check-out must be after check-in." };
-  }
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
-    .select("shift_start")
+    .select("shift_start, shift_end")
     .eq("id", employeeId)
     .single();
   if (profileErr || !profile) return { error: "Employee not found." };
 
+  // A check-out clock-time at or before the check-in clock-time normally
+  // means a typo — but for an employee whose own shift is registered as
+  // overnight (shift_end <= shift_start, e.g. 10 PM - 6 AM), it legitimately
+  // means the checkout lands on the following calendar day.
+  const crossesMidnight = !!(checkInTime && checkOutTime && timeToMinutes(checkOutTime) <= timeToMinutes(checkInTime));
+  const employeeIsOvernightShift = timeToMinutes(profile.shift_end) <= timeToMinutes(profile.shift_start);
+
+  if (crossesMidnight && !employeeIsOvernightShift) {
+    return { error: "Check-out must be after check-in." };
+  }
+
   const check_in = checkInTime ? pktToISOString(workDate, checkInTime) : null;
-  const check_out = checkOutTime ? pktToISOString(workDate, checkOutTime) : null;
+  const check_out = checkOutTime
+    ? pktToISOString(crossesMidnight ? addOneDay(workDate) : workDate, checkOutTime)
+    : null;
   const status = !checkInTime ? "ABSENT" : isLateCheckIn(checkInTime, profile.shift_start) ? "LATE" : "PRESENT";
 
   const { error } = await supabase
