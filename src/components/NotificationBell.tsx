@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, CheckCheck } from "lucide-react";
-import { getMyNotifications, markAllNotificationsRead, markNotificationRead } from "@/app/actions/notifications";
 import type { Notification } from "@/lib/types";
-
-const POLL_MS = 45_000;
 
 function timeAgo(iso: string): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -20,11 +17,21 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-PK", { day: "2-digit", month: "short" });
 }
 
+/**
+ * Purely presentational — polling and the mark-read mutations live in the
+ * parent (Sidebar), which renders two of these (desktop + mobile) so each
+ * bell used to run its own independent timer, doubling notification traffic
+ * for no reason since both instances always show the same data.
+ */
 export function NotificationBell({
-  initial,
+  notifications,
+  onMarkRead,
+  onMarkAllRead,
   align = "right",
 }: {
-  initial: Notification[];
+  notifications: Notification[];
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
   /** Which side the dropdown's edge anchors to relative to the bell. Use
    * "left" when the bell sits near the right edge of a narrow column (e.g.
    * the sidebar header) — anchoring "right" there pushes the panel off the
@@ -32,19 +39,10 @@ export function NotificationBell({
   align?: "left" | "right";
 }) {
   const router = useRouter();
-  const [notifications, setNotifications] = useState(initial);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const fresh = await getMyNotifications();
-      setNotifications(fresh);
-    }, POLL_MS);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -54,18 +52,10 @@ export function NotificationBell({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  async function onSelect(n: Notification) {
-    if (!n.read_at) {
-      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)));
-      markNotificationRead(n.id);
-    }
+  function onSelect(n: Notification) {
+    if (!n.read_at) onMarkRead(n.id);
     setOpen(false);
     if (n.link) router.push(n.link);
-  }
-
-  function onMarkAllRead() {
-    setNotifications((prev) => prev.map((x) => (x.read_at ? x : { ...x, read_at: new Date().toISOString() })));
-    markAllNotificationsRead();
   }
 
   return (

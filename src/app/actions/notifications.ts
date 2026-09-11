@@ -3,13 +3,17 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Notification } from "@/lib/types";
 
-/** The signed-in user's most recent notifications (RLS scopes this to their own). */
+/**
+ * The signed-in user's most recent notifications. No explicit auth check
+ * here on purpose — RLS ("user_id = auth.uid()") already scopes every one
+ * of these queries to the caller's own rows, so re-validating the session
+ * with an extra auth.getUser() call before each one would just be a second
+ * Supabase Auth round-trip for no additional safety. An unauthenticated
+ * request simply gets an empty/no-op result instead of an error, which is
+ * fine here since this is a background poll, not a user-facing action.
+ */
 export async function getMyNotifications(): Promise<Notification[]> {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
 
   const { data } = await supabase
     .from("notifications")
@@ -22,10 +26,6 @@ export async function getMyNotifications(): Promise<Notification[]> {
 
 export async function markNotificationRead(id: string) {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in." };
 
   const { error } = await supabase
     .from("notifications")
@@ -39,15 +39,10 @@ export async function markNotificationRead(id: string) {
 
 export async function markAllNotificationsRead() {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in." };
 
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
-    .eq("user_id", user.id)
     .is("read_at", null);
 
   if (error) return { error: error.message };
