@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/Avatar";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
+import { getMyNotifications, markAllNotificationsRead, markNotificationRead } from "@/app/actions/notifications";
 import type { Notification, Profile } from "@/lib/types";
 import { LayoutDashboard, Users, ShieldCheck, BarChart3, Wallet, CalendarOff, LifeBuoy, Menu, X } from "lucide-react";
+
+// Long-ish on purpose: notifications aren't time-critical, and this fires
+// once for the whole sidebar (see below) rather than once per bell.
+const NOTIFICATION_POLL_MS = 120_000;
 
 function navItems(isAdmin: boolean) {
   // Admins don't check in/out, so the personal dashboard & hours tracker aren't for them.
@@ -36,12 +41,39 @@ function isActive(pathname: string, href: string) {
   return pathname === href;
 }
 
-export function Sidebar({ profile, notifications = [] }: { profile: Profile; notifications?: Notification[] }) {
+export function Sidebar({
+  profile,
+  notifications: initialNotifications = [],
+}: {
+  profile: Profile;
+  notifications?: Notification[];
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState(initialNotifications);
   const isAdmin = profile.role === "ADMIN";
   const items = navItems(isAdmin);
   const homeHref = isAdmin ? "/admin" : "/dashboard";
+
+  // One shared poll for both bell instances below (desktop + mobile) — they
+  // used to each run their own interval, silently doubling notification
+  // request volume since both always show the same data anyway.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      setNotifications(await getMyNotifications());
+    }, NOTIFICATION_POLL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  function handleMarkRead(id: string) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
+    markNotificationRead(id);
+  }
+
+  function handleMarkAllRead() {
+    setNotifications((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
+    markAllNotificationsRead();
+  }
 
   const body = (
     <div className="flex h-full flex-col">
@@ -49,7 +81,12 @@ export function Sidebar({ profile, notifications = [] }: { profile: Profile; not
         <Link href={homeHref} onClick={() => setOpen(false)}>
           <Logo size="lg" />
         </Link>
-        <NotificationBell initial={notifications} align="left" />
+        <NotificationBell
+          notifications={notifications}
+          onMarkRead={handleMarkRead}
+          onMarkAllRead={handleMarkAllRead}
+          align="left"
+        />
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map(({ href, label, icon: Icon }) => (
@@ -92,7 +129,11 @@ export function Sidebar({ profile, notifications = [] }: { profile: Profile; not
           <Logo />
         </Link>
         <div className="flex items-center gap-1">
-          <NotificationBell initial={notifications} />
+          <NotificationBell
+            notifications={notifications}
+            onMarkRead={handleMarkRead}
+            onMarkAllRead={handleMarkAllRead}
+          />
           <button
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
