@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteDesktopBuild, uploadDesktopBuild } from "./actions";
+import { deleteDesktopBuild, finalizeUpload, requestUploadUrl } from "./actions";
 import { Modal } from "@/components/Modal";
 import { formatDate, formatFileSize } from "@/lib/format";
 import type { DesktopBuild } from "@/lib/types";
@@ -12,26 +12,58 @@ export function DownloadsManager({ builds }: { builds: DesktopBuild[] }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DesktopBuild | null>(null);
   const [deleting, startDeleteTransition] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Uploads straight from the browser to B2 with a presigned URL, bypassing
+  // Vercel's serverless functions (which hard-cap request bodies at 4.5MB)
+  // entirely for the actual file bytes — a Server Action only ever hands back
+  // the small presigned URL, never the file itself.
+  function putWithProgress(url: string, file: File): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Upload failed (${xhr.status}).`));
+      };
+      xhr.onerror = () => reject(new Error("Upload failed — network error."));
+      xhr.send(file);
+    });
+  }
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) return;
+
     setError(null);
-    startTransition(async () => {
-      const res = await uploadDesktopBuild(formData);
-      if (res?.error) {
-        setError(res.error);
-      } else {
+    setProgress(0);
+    setUploading(true);
+
+    (async () => {
+      try {
+        const res = await requestUploadUrl(file.name, file.type);
+        if ("error" in res) throw new Error(res.error);
+        await putWithProgress(res.url, file);
+        await finalizeUpload();
         setFileName("");
         if (fileInputRef.current) fileInputRef.current.value = "";
         router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setUploading(false);
       }
-    });
+    })();
   }
 
   function confirmDelete() {
@@ -65,11 +97,19 @@ export function DownloadsManager({ builds }: { builds: DesktopBuild[] }) {
             onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
             className="input"
           />
-          <button type="submit" disabled={pending || !fileName} className="btn-primary shrink-0">
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          <button type="submit" disabled={uploading || !fileName} className="btn-primary shrink-0">
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Upload
           </button>
         </form>
+        {uploading && (
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 

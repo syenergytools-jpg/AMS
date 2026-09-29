@@ -10,14 +10,6 @@ const nextConfig = {
       { protocol: "https", hostname: "**.supabase.co" },
     ],
   },
-  experimental: {
-    // Default is 1mb — too small for uploading desktop app installers
-    // (uploaded here, then relayed to B2). 150mb gives headroom above a
-    // ~110MB build.
-    serverActions: {
-      bodySizeLimit: "150mb",
-    },
-  },
 };
 
 export default nextConfig;

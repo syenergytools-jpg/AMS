@@ -4,8 +4,8 @@ import {
   ListObjectsV2Command,
   DeleteObjectCommand,
   GetObjectCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { DesktopBuild } from "@/lib/types";
 
@@ -17,6 +17,7 @@ import type { DesktopBuild } from "@/lib/types";
 const FOLDER = "tracker-builds";
 const NAME_SEPARATOR = "__";
 const DOWNLOAD_URL_TTL_SECONDS = 3600;
+const UPLOAD_URL_TTL_SECONDS = 3600;
 
 // B2's S3-compatible endpoint hostname embeds its region, e.g.
 // "s3.us-west-004.backblazeb2.com" — read off the bucket's details page.
@@ -85,25 +86,33 @@ export async function listDesktopBuilds(): Promise<DesktopBuild[]> {
   return builds.sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
 }
 
-/** Uploads a new build to B2. Large files are uploaded as multipart automatically. */
-export async function uploadDesktopBuildFile(file: File): Promise<{ error?: string }> {
+/**
+ * Returns a presigned URL the browser can PUT the file to directly. Vercel's
+ * serverless functions hard-cap request bodies at 4.5MB (infrastructure-level,
+ * not something next.config's bodySizeLimit can override), so a ~110MB build
+ * can never be relayed through a Server Action in production — it has to go
+ * browser-to-B2 directly, bypassing Vercel entirely for the file bytes.
+ */
+export async function createUploadUrl(
+  filename: string,
+  contentType: string
+): Promise<{ key: string; url: string } | { error: string }> {
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const key = `${FOLDER}/${unique}${NAME_SEPARATOR}${sanitize(file.name)}`;
+  const key = `${FOLDER}/${unique}${NAME_SEPARATOR}${sanitize(filename)}`;
 
   try {
-    const upload = new Upload({
-      client: getClient(),
-      params: {
+    const url = await getSignedUrl(
+      getClient(),
+      new PutObjectCommand({
         Bucket: bucket(),
         Key: key,
-        Body: Buffer.from(await file.arrayBuffer()),
-        ContentType: file.type || "application/octet-stream",
-      },
-    });
-    await upload.done();
-    return {};
+        ContentType: contentType || "application/octet-stream",
+      }),
+      { expiresIn: UPLOAD_URL_TTL_SECONDS }
+    );
+    return { key, url };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Upload failed." };
+    return { error: e instanceof Error ? e.message : "Could not prepare upload." };
   }
 }
 

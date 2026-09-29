@@ -2,21 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/data";
-import { uploadDesktopBuildFile, deleteDesktopBuild as deleteDesktopBuildAsset } from "@/lib/desktopBuilds";
+import { createUploadUrl, deleteDesktopBuild as deleteDesktopBuildAsset } from "@/lib/desktopBuilds";
 
-/** Admin uploads a new build of the tracker desktop app for employees to download. */
-export async function uploadDesktopBuild(formData: FormData) {
+/**
+ * Returns a presigned URL for the browser to PUT the file to directly — see
+ * the comment on createUploadUrl for why this can't go through a normal
+ * Server Action body on Vercel.
+ */
+export async function requestUploadUrl(filename: string, contentType: string) {
   await requireAdmin();
+  return createUploadUrl(filename, contentType);
+}
 
-  const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) return { error: "Choose a file first." };
-
-  const { error } = await uploadDesktopBuildFile(file);
-  if (error) return { error };
-
+/** Admin confirms a direct browser→B2 upload finished, so both pages refresh. */
+export async function finalizeUpload() {
+  await requireAdmin();
   revalidatePath("/admin/downloads");
   revalidatePath("/dashboard/downloads");
-  return { ok: true };
 }
 
 /** Admin removes a previously uploaded build. */
