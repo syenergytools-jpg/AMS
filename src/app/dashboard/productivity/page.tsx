@@ -2,12 +2,12 @@ import { getCurrentProfile } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/StatCard";
 import { ProductivityTrendSection } from "./ProductivityTrendSection";
-import { TodaySites } from "./TodaySites";
+import { TodayApps } from "./TodayApps";
 import { formatDate, formatHours, formatMonthLabel, pktNow, shiftLengthHours } from "@/lib/format";
 import { buildMonthProductivityDays, productivityPercent, requiredProductiveHours } from "@/lib/productivity";
 import { STATUS_COLOR, STATUS_LABEL } from "@/lib/hours";
 import { leaveDatesSet } from "@/lib/payroll";
-import type { LeaveRequest, ProductivitySession, SiteActivity } from "@/lib/types";
+import type { AppActivity, LeaveRequest, ProductivitySession } from "@/lib/types";
 import { Clock, Percent, Target, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function ProductivityPage() {
   // new month, so this covers whichever start is earlier.
   const fetchStart = monthStart < sevenDayStart ? monthStart : sevenDayStart;
 
-  const [{ data: sessionsData }, { data: sitesData }, { data: leaveData }] = await Promise.all([
+  const [{ data: sessionsData }, { data: appsData }, { data: leaveData }] = await Promise.all([
     supabase
       .from("productivity_sessions")
       .select("*")
@@ -33,12 +33,12 @@ export default async function ProductivityPage() {
       .gte("work_date", fetchStart)
       .lte("work_date", todayKey)
       .order("work_date", { ascending: false }),
-    supabase.from("site_activity").select("*").eq("user_id", profile.id).eq("work_date", todayKey),
+    supabase.from("app_activity").select("*").eq("user_id", profile.id).eq("work_date", todayKey),
     supabase.from("leave_requests").select("*").eq("user_id", profile.id).eq("status", "APPROVED"),
   ]);
 
   const sessions = (sessionsData ?? []) as ProductivitySession[];
-  const todaySites = (sitesData ?? []) as SiteActivity[];
+  const todayApps = (appsData ?? []) as AppActivity[];
   const today = sessions.find((s) => s.work_date === todayKey) ?? null;
 
   const todayTotalSeconds = (today?.total_productive_seconds ?? 0) + (today?.total_unproductive_seconds ?? 0);
@@ -72,7 +72,7 @@ export default async function ProductivityPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-navy">Productivity</h1>
-        <p className="mt-1 text-sm text-slate-500">Your browser activity while working, tracked automatically.</p>
+        <p className="mt-1 text-sm text-slate-500">Your app activity while working, tracked automatically.</p>
       </div>
 
       {today?.flagged_suspicious && (
@@ -209,10 +209,10 @@ export default async function ProductivityPage() {
 
       <div className="card overflow-hidden">
         <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="font-semibold text-navy">Today&apos;s sites</h2>
+          <h2 className="font-semibold text-navy">Today&apos;s apps</h2>
         </div>
         <div className="p-4">
-          <TodaySites sites={todaySites} />
+          <TodayApps apps={todayApps} />
         </div>
       </div>
     </div>

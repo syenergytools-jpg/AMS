@@ -25,7 +25,7 @@ import {
   shiftLengthHours,
   shiftMonthKey,
 } from "@/lib/format";
-import type { Attendance, LeaveRequest, Profile, ProductivitySession, SalarySlip, SiteActivity } from "@/lib/types";
+import type { AppActivity, Attendance, LeaveRequest, Profile, ProductivitySession, SalarySlip } from "@/lib/types";
 import {
   ArrowLeft,
   IdCard,
@@ -79,7 +79,7 @@ export default async function EmployeeDetail({
     { data: leaveData },
     { data: hoursAttData },
     { data: sessionsData },
-    { data: sitesData },
+    { data: appsData },
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", params.id).single(),
     supabase
@@ -116,7 +116,7 @@ export default async function EmployeeDetail({
       .lte("work_date", hoursMonthEnd)
       .order("work_date", { ascending: false }),
     supabase
-      .from("site_activity")
+      .from("app_activity")
       .select("*")
       .eq("user_id", params.id)
       .gte("work_date", hoursMonthStart)
@@ -132,7 +132,7 @@ export default async function EmployeeDetail({
   const leaveRequests = (leaveData ?? []) as LeaveRequest[];
   const hoursAttendance = (hoursAttData ?? []) as Attendance[];
   const productivitySessions = (sessionsData ?? []) as ProductivitySession[];
-  const productivitySites = (sitesData ?? []) as SiteActivity[];
+  const productivityApps = (appsData ?? []) as AppActivity[];
 
   const approvedLeaveDates = leaveDatesSet(leaveRequests);
   const shiftHours = shiftLengthHours(emp.shift_start, emp.shift_end);
@@ -275,10 +275,9 @@ export default async function EmployeeDetail({
         <EmployeeProductivity
           employeeId={emp.id}
           sessions={productivitySessions}
-          sites={productivitySites}
+          apps={productivityApps}
           monthStart={hoursMonthStart}
           monthEnd={historyEnd}
-          targetHours={productivityTargetHours}
           requiredHours={productivityRequiredHours}
         />
       </div>

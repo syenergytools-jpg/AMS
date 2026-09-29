@@ -6,7 +6,7 @@ import { ProductivityOverviewTable } from "./ProductivityOverviewTable";
 import { NeedsCategorization } from "./NeedsCategorization";
 import { FlaggedSessionsPanel } from "./FlaggedSessionsPanel";
 import { pktNow } from "@/lib/format";
-import type { AppActivity, Profile, ProductivitySession, SiteActivity, SiteCategory } from "@/lib/types";
+import type { AppActivity, Profile, ProductivitySession, SiteCategory } from "@/lib/types";
 import { Users, TrendingUp, AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,6 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
   const [
     { data: profilesData },
     { data: sessionsData },
-    { data: sitesData },
     { data: appsData },
     { data: uncategorizedData },
     { data: categoriesData },
@@ -39,10 +38,11 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("role", "EMPLOYEE").order("full_name"),
     supabase.from("productivity_sessions").select("*").eq("work_date", dateKey),
-    supabase.from("site_activity").select("*").eq("work_date", dateKey),
-    // Desktop-agent per-app data — the "Top App" column's source (site_activity
-    // is the retired browser-extension design and won't have current data).
+    // Desktop-agent per-app data — both the "Top App" column and the
+    // drill-down modal's source.
     supabase.from("app_activity").select("*").eq("work_date", dateKey),
+    // Legacy browser-extension data — site_categories/NeedsCategorization
+    // still manage it, but it won't have current data from the desktop agent.
     supabase
       .from("site_activity")
       .select("hostname")
@@ -59,7 +59,6 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
 
   const employees = (profilesData ?? []) as Profile[];
   const sessions = (sessionsData ?? []) as ProductivitySession[];
-  const sites = (sitesData ?? []) as SiteActivity[];
   const apps = (appsData ?? []) as AppActivity[];
   const categorized = new Set(((categoriesData ?? []) as SiteCategory[]).map((c) => c.hostname));
   const needsCategorization = Array.from(
@@ -86,7 +85,7 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-navy">Productivity</h1>
-          <p className="mt-1 text-sm text-slate-500">Browser activity tracked while your team is working.</p>
+          <p className="mt-1 text-sm text-slate-500">App activity tracked while your team is working.</p>
         </div>
         <DateNav dateKey={dateKey} prevDate={prevDate} nextDate={nextDate} nextDisabled={nextDisabled} todayKey={todayKey} />
       </div>
@@ -102,7 +101,7 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
         />
       </div>
 
-      <ProductivityOverviewTable employees={employees} sessions={sessions} sites={sites} apps={apps} />
+      <ProductivityOverviewTable employees={employees} sessions={sessions} apps={apps} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <NeedsCategorization hostnames={needsCategorization} />

@@ -2,38 +2,35 @@
 
 import { useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { SiteBreakdownModal } from "@/components/SiteBreakdownModal";
+import { AppBreakdownModal } from "@/components/AppBreakdownModal";
 import { formatAppName, productivityPercent } from "@/lib/productivity";
 import { formatHours } from "@/lib/format";
-import type { AppActivity, Profile, ProductivitySession, SiteActivity } from "@/lib/types";
+import type { AppActivity, Profile, ProductivitySession } from "@/lib/types";
 
 export function ProductivityOverviewTable({
   employees,
   sessions,
-  sites,
   apps,
 }: {
   employees: Profile[];
   sessions: ProductivitySession[];
-  sites: SiteActivity[];
   apps: AppActivity[];
 }) {
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
   const sessionByUser = useMemo(() => new Map(sessions.map((s) => [s.user_id, s])), [sessions]);
-  const sitesByUser = useMemo(() => {
-    const map = new Map<string, SiteActivity[]>();
-    for (const s of sites) {
-      const list = map.get(s.user_id);
-      if (list) list.push(s);
-      else map.set(s.user_id, [s]);
+  const appsByUser = useMemo(() => {
+    const map = new Map<string, AppActivity[]>();
+    for (const a of apps) {
+      const list = map.get(a.user_id);
+      if (list) list.push(a);
+      else map.set(a.user_id, [a]);
     }
     return map;
-  }, [sites]);
+  }, [apps]);
 
   // App with the most total time per user, from the desktop agent's
-  // app_activity rows for the selected date (site_activity is the retired
-  // browser-extension design and won't have current data).
+  // app_activity rows for the selected date.
   const topAppByUser = useMemo(() => {
     const bestTotal = new Map<string, number>();
     const bestName = new Map<string, string>();
@@ -61,7 +58,7 @@ export function ProductivityOverviewTable({
   }
 
   const viewingEmployee = viewingUserId ? (employees.find((e) => e.id === viewingUserId) ?? null) : null;
-  const viewingSites = viewingUserId ? (sitesByUser.get(viewingUserId) ?? []) : [];
+  const viewingApps = viewingUserId ? (appsByUser.get(viewingUserId) ?? []) : [];
 
   return (
     <>
@@ -118,9 +115,9 @@ export function ProductivityOverviewTable({
       </div>
 
       {viewingEmployee && (
-        <SiteBreakdownModal
-          title={`Sites — ${viewingEmployee.full_name}`}
-          sites={viewingSites}
+        <AppBreakdownModal
+          title={`Apps — ${viewingEmployee.full_name}`}
+          apps={viewingApps}
           onClose={() => setViewingUserId(null)}
         />
       )}
