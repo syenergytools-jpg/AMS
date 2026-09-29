@@ -13,7 +13,7 @@ import { EmployeeLeaveHistory } from "./EmployeeLeaveHistory";
 import { EmployeeProductivity } from "./EmployeeProductivity";
 import { buildAttendanceHistory, buildMonthDayHours } from "@/lib/hours";
 import { leaveDatesSet } from "@/lib/payroll";
-import { productivityPercent } from "@/lib/productivity";
+import { productivityPercent, requiredProductiveHours } from "@/lib/productivity";
 import {
   formatDate,
   formatHours,
@@ -161,6 +161,8 @@ export default async function EmployeeDetail({
   const monthProductiveSeconds = productivitySessions.reduce((sum, s) => sum + s.total_productive_seconds, 0);
   const monthUnproductiveSeconds = productivitySessions.reduce((sum, s) => sum + s.total_unproductive_seconds, 0);
   const monthProductivityPct = productivityPercent(monthProductiveSeconds, monthUnproductiveSeconds);
+  const productivityTargetHours = requiredProductiveHours(shiftHours);
+  const productivityRequiredHours = (workingDaysTotal - leaveDaysTotal) * productivityTargetHours;
 
   const monthLabel = formatMonthLabel(monthKey);
   const prevMonthKey = shiftMonthKey(monthKey, -1);
@@ -276,6 +278,8 @@ export default async function EmployeeDetail({
           sites={productivitySites}
           monthStart={hoursMonthStart}
           monthEnd={historyEnd}
+          targetHours={productivityTargetHours}
+          requiredHours={productivityRequiredHours}
         />
       </div>
 

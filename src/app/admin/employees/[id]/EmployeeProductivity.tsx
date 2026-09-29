@@ -6,10 +6,11 @@ import { deleteProductivitySession, updateProductivitySession } from "../actions
 import { ProductivityChart, type ChartRow } from "@/components/ProductivityChart";
 import { Modal } from "@/components/Modal";
 import { SiteBreakdownModal } from "@/components/SiteBreakdownModal";
+import { StatCard } from "@/components/StatCard";
 import { productivityPercent } from "@/lib/productivity";
 import { formatDate, formatHours } from "@/lib/format";
 import type { ProductivitySession, SiteActivity } from "@/lib/types";
-import { AlertTriangle, Loader2, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Pencil, Percent, Target, Trash2, TrendingUp } from "lucide-react";
 
 interface EditState {
   workDate: string;
@@ -25,12 +26,18 @@ export function EmployeeProductivity({
   sites,
   monthStart,
   monthEnd,
+  targetHours,
+  requiredHours,
 }: {
   employeeId: string;
   sessions: ProductivitySession[];
   sites: SiteActivity[];
   monthStart: string;
   monthEnd: string;
+  /** Productive hours expected per working day, based on this employee's own shift. */
+  targetHours: number;
+  /** targetHours × working days in the selected month (already excludes rest/leave days). */
+  requiredHours: number;
 }) {
   const router = useRouter();
   const [viewingDate, setViewingDate] = useState<string | null>(null);
@@ -41,6 +48,8 @@ export function EmployeeProductivity({
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const sitesForViewing = viewingDate ? sites.filter((s) => s.work_date === viewingDate) : [];
+  const trackedHours = sessions.reduce((sum, s) => sum + s.total_productive_seconds, 0) / 3600;
+  const completionPct = requiredHours > 0 ? Math.round((trackedHours / requiredHours) * 100) : 0;
 
   // One bar per calendar day in the selected month (zero-filled), so the
   // admin sees the daily shape at a glance — the table below still only
@@ -119,6 +128,22 @@ export function EmployeeProductivity({
         <p className="text-xs text-slate-400">Browser activity tracked for the month selected above.</p>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 border-b border-slate-100 p-6 sm:grid-cols-3">
+        <StatCard icon={<Target className="h-5 w-5" />} label="Required this month" value={formatHours(requiredHours)} />
+        <StatCard
+          icon={<TrendingUp className="h-5 w-5" />}
+          label="Tracked productive"
+          value={formatHours(trackedHours)}
+          accent="text-emerald-600"
+        />
+        <StatCard
+          icon={<Percent className="h-5 w-5" />}
+          label="Target completion"
+          value={`${completionPct}%`}
+          accent="text-brand-600"
+        />
+      </div>
+
       {chartData.length > 0 && (
         <div className="border-b border-slate-100 p-6">
           <ProductivityChart data={chartData} />
@@ -136,6 +161,7 @@ export function EmployeeProductivity({
               <th className="px-6 py-3 font-medium">Productive</th>
               <th className="px-6 py-3 font-medium">Unproductive</th>
               <th className="px-6 py-3 font-medium">Productivity</th>
+              <th className="px-6 py-3 font-medium">vs Target</th>
               <th className="px-6 py-3 font-medium">Status</th>
               <th className="px-6 py-3 font-medium"></th>
             </tr>
@@ -143,6 +169,7 @@ export function EmployeeProductivity({
           <tbody className="divide-y divide-slate-50">
             {sessions.map((s) => {
               const pct = productivityPercent(s.total_productive_seconds, s.total_unproductive_seconds);
+              const diff = s.total_productive_seconds / 3600 - targetHours;
               return (
                 <tr
                   key={s.id}
@@ -156,6 +183,10 @@ export function EmployeeProductivity({
                   <td className="px-6 py-3 text-emerald-600">{formatHours(s.total_productive_seconds / 3600)}</td>
                   <td className="px-6 py-3 text-amber-600">{formatHours(s.total_unproductive_seconds / 3600)}</td>
                   <td className="px-6 py-3 font-medium text-navy">{pct === null ? "—" : `${pct}%`}</td>
+                  <td className={`px-6 py-3 font-medium ${diff >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    {diff >= 0 ? "+" : "−"}
+                    {formatHours(Math.abs(diff))}
+                  </td>
                   <td className="px-6 py-3">
                     {s.flagged_suspicious ? (
                       <span className="badge bg-red-50 text-red-700">
