@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data";
 import { isLateCheckIn } from "@/lib/format";
 
@@ -237,5 +237,23 @@ export async function deleteProductivitySession(employeeId: string, workDate: st
   if (error) return { error: error.message };
   revalidatePath(`/admin/employees/${employeeId}`);
   revalidatePath("/admin/productivity");
+  return { ok: true };
+}
+
+/**
+ * Admin deletes a salary slip entirely — e.g. one added for the wrong month
+ * by mistake. Unlike attendance/productivity_sessions, salary_slips has no
+ * delete RLS policy (admins only get insert/update), so this goes through
+ * the service-role client instead of the session-scoped one.
+ */
+export async function deleteSalarySlip(employeeId: string, slipId: string) {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  const { error } = await admin.from("salary_slips").delete().eq("id", slipId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/employees/${employeeId}`);
+  revalidatePath("/admin/salary");
   return { ok: true };
 }

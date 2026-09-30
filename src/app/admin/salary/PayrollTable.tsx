@@ -1,12 +1,15 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { SalaryForm } from "../SalaryForm";
-import { formatCurrency } from "@/lib/format";
+import { deleteSalarySlip } from "../employees/actions";
+import { Modal } from "@/components/Modal";
+import { formatCurrency, formatMonthLabel } from "@/lib/format";
 import type { Attendance, LeaveRequest, Profile, SalarySlip } from "@/lib/types";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Trash2 } from "lucide-react";
 
 function netPay(s: { basic_salary: number; allowances: number; deductions: number }) {
   return s.basic_salary + s.allowances - s.deductions;
@@ -25,7 +28,25 @@ export function PayrollTable({
   attendance: Attendance[];
   leaveRequests: LeaveRequest[];
 }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ employeeName: string; slip: SalarySlip } | null>(null);
+  const [deleting, startDeleteTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteError(null);
+    startDeleteTransition(async () => {
+      const res = await deleteSalarySlip(deleteTarget.slip.user_id, deleteTarget.slip.id);
+      if (res?.error) {
+        setDeleteError(res.error);
+      } else {
+        router.refresh();
+        setDeleteTarget(null);
+      }
+    });
+  }
 
   const slipThisMonthByUser = useMemo(() => {
     const map = new Map<string, SalarySlip>();
@@ -116,13 +137,24 @@ export function PayrollTable({
                     )}
                   </td>
                   <td className="px-6 py-3 text-right">
-                    <button
-                      onClick={() => setExpanded(isOpen ? null : emp.id)}
-                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition hover:bg-brand-50"
-                    >
-                      {slip ? "Edit" : "Add"}
-                      {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : emp.id)}
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition hover:bg-brand-50"
+                      >
+                        {slip ? "Edit" : "Add"}
+                        {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                      {slip && (
+                        <button
+                          onClick={() => setDeleteTarget({ employeeName: emp.full_name, slip })}
+                          aria-label={`Delete ${emp.full_name}'s salary slip`}
+                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 {isOpen && (
@@ -148,6 +180,30 @@ export function PayrollTable({
           })}
         </tbody>
       </table>
+
+      {deleteTarget && (
+        <Modal title="Delete salary slip" onClose={() => setDeleteTarget(null)}>
+          <p className="text-sm text-slate-600">
+            Delete <strong className="text-navy">{deleteTarget.employeeName}</strong>&apos;s{" "}
+            <strong className="text-navy">{formatMonthLabel(deleteTarget.slip.month.slice(0, 7))}</strong> salary
+            slip ({formatCurrency(netPay(deleteTarget.slip))} net pay)? This can&apos;t be undone.
+          </p>
+          {deleteError && <p className="mt-2 text-xs text-red-600">{deleteError}</p>}
+          <div className="flex justify-end gap-2 pt-5">
+            <button type="button" onClick={() => setDeleteTarget(null)} className="btn-ghost">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
