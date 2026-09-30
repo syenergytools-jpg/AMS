@@ -7,6 +7,8 @@ export interface MonthAttendanceSummary {
   expectedHours: number;
   actualHours: number;
   hoursShort: number;
+  /** Hours worked beyond expectedHours — the mirror of hoursShort, never both positive at once. */
+  hoursExtra: number;
 }
 
 /** Expands approved leave requests into a set of "YYYY-MM-DD" dates they cover. */
@@ -72,7 +74,8 @@ export function summarizeMonth(
 
   const expectedHours = (workingDays - leaveDays) * shiftHours;
   const hoursShort = Math.max(0, expectedHours - actualHours);
-  return { workingDays, leaveDays, expectedHours, actualHours, hoursShort };
+  const hoursExtra = Math.max(0, actualHours - expectedHours);
+  return { workingDays, leaveDays, expectedHours, actualHours, hoursShort, hoursExtra };
 }
 
 /**
@@ -84,4 +87,15 @@ export function autoDeduction(basicSalary: number, expectedHours: number, hoursS
   if (expectedHours <= 0 || hoursShort <= 0) return 0;
   const hourlyRate = basicSalary / expectedHours;
   return Math.round(hoursShort * hourlyRate);
+}
+
+/**
+ * Bonus in proportion to extra hours worked beyond expected — the mirror of
+ * autoDeduction, using the same per-hour rate: a full extra shift's worth of
+ * hours earns exactly one day's pay as a bonus.
+ */
+export function autoBonus(basicSalary: number, expectedHours: number, hoursExtra: number): number {
+  if (expectedHours <= 0 || hoursExtra <= 0) return 0;
+  const hourlyRate = basicSalary / expectedHours;
+  return Math.round(hoursExtra * hourlyRate);
 }

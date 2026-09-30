@@ -87,7 +87,7 @@ export function SalarySlipEditor({
               <th className="px-6 py-3 font-medium">Basic</th>
               <th className="px-6 py-3 font-medium">Allowances</th>
               <th className="px-6 py-3 font-medium">Deductions</th>
-              <th className="px-6 py-3 font-medium">Hours short</th>
+              <th className="px-6 py-3 font-medium">Hours vs target</th>
               <th className="px-6 py-3 font-medium">Net pay</th>
               <th className="px-6 py-3 font-medium"></th>
             </tr>
@@ -104,7 +104,9 @@ export function SalarySlipEditor({
                   <td className="px-6 py-3">{formatCurrency(s.deductions)}</td>
                   <td className="px-6 py-3">
                     {hist.hoursShort > 0 ? (
-                      <span className="text-amber-600">{formatHours(hist.hoursShort)}</span>
+                      <span className="text-amber-600">-{formatHours(hist.hoursShort)}</span>
+                    ) : hist.hoursExtra > 0 ? (
+                      <span className="text-emerald-600">+{formatHours(hist.hoursExtra)}</span>
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}

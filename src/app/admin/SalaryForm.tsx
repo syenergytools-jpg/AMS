@@ -4,9 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { upsertSalarySlip } from "./actions";
 import { formatCurrency, formatHours, pktNow } from "@/lib/format";
-import { summarizeMonth, autoDeduction, leaveDatesSet } from "@/lib/payroll";
+import { summarizeMonth, autoDeduction, autoBonus, leaveDatesSet } from "@/lib/payroll";
 import type { Attendance, LeaveRequest, SalarySlip } from "@/lib/types";
-import { Loader2, Clock, Target, TrendingDown, CalendarCheck, CalendarOff, RefreshCw } from "lucide-react";
+import { Loader2, Clock, Target, TrendingDown, TrendingUp, CalendarCheck, CalendarOff, RefreshCw } from "lucide-react";
 
 /**
  * The actual salary editing UI: attendance-vs-target breakdown, an
@@ -58,6 +58,7 @@ export function SalaryForm({
 
   const basicSalaryNum = Number(basicSalary) || 0;
   const suggestedDeduction = autoDeduction(basicSalaryNum, summary.expectedHours, summary.hoursShort);
+  const suggestedBonus = autoBonus(basicSalaryNum, summary.expectedHours, summary.hoursExtra);
   const hourlyRate = summary.expectedHours > 0 ? basicSalaryNum / summary.expectedHours : 0;
   const netPay = basicSalaryNum + (Number(allowances) || 0) - (Number(deductions) || 0);
   const workedRatio =
@@ -100,12 +101,21 @@ export function SalaryForm({
           />
           <MiniStat icon={<Clock className="h-4 w-4" />} label="Hours worked" value={formatHours(summary.actualHours)} />
           <MiniStat icon={<Target className="h-4 w-4" />} label="Expected" value={formatHours(summary.expectedHours)} />
-          <MiniStat
-            icon={<TrendingDown className="h-4 w-4" />}
-            label="Short"
-            value={formatHours(summary.hoursShort)}
-            accent={summary.hoursShort > 0 ? "text-red-600" : "text-emerald-600"}
-          />
+          {summary.hoursExtra > 0 ? (
+            <MiniStat
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="Extra"
+              value={formatHours(summary.hoursExtra)}
+              accent="text-emerald-600"
+            />
+          ) : (
+            <MiniStat
+              icon={<TrendingDown className="h-4 w-4" />}
+              label="Short"
+              value={formatHours(summary.hoursShort)}
+              accent={summary.hoursShort > 0 ? "text-red-600" : "text-emerald-600"}
+            />
+          )}
         </div>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
           <div
@@ -136,6 +146,22 @@ export function SalaryForm({
               type="button"
               onClick={() => setDeductions(String(suggestedDeduction))}
               className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
+            >
+              <RefreshCw className="h-3 w-3" /> Use this
+            </button>
+          </div>
+        )}
+
+        {summary.hoursExtra > 0 && basicSalaryNum > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+            <span>
+              Suggested bonus: <span className="font-semibold">{formatCurrency(suggestedBonus)}</span>{" "}
+              ({formatHours(summary.hoursExtra)} extra × {formatCurrency(hourlyRate)}/hour)
+            </span>
+            <button
+              type="button"
+              onClick={() => setAllowances(String(suggestedBonus))}
+              className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
             >
               <RefreshCw className="h-3 w-3" /> Use this
             </button>
