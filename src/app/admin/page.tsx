@@ -4,17 +4,25 @@ import { requireAdmin } from "@/lib/data";
 import { Avatar } from "@/components/Avatar";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { formatDate, formatTime, hoursBetween } from "@/lib/format";
+import { DateNav } from "@/components/DateNav";
+import { formatDate, formatTime, hoursBetween, pktNow } from "@/lib/format";
 import type { Attendance, Profile } from "@/lib/types";
 import { Users, UserCheck, Clock3, UserX, LifeBuoy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({ searchParams }: { searchParams: { date?: string } }) {
   const admin = await requireAdmin();
   const supabase = createClient();
-  const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() + 5 * 3600 * 1000 - 86_400_000).toISOString().slice(0, 10);
+
+  const todayKey = pktNow().toISOString().slice(0, 10);
+  const requested = searchParams.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date) ? searchParams.date : todayKey;
+  const dateKey = requested > todayKey ? todayKey : requested; // no browsing into the future
+  const isToday = dateKey === todayKey;
+
+  const prevDate = new Date(Date.parse(`${dateKey}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const nextDate = new Date(Date.parse(`${dateKey}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const nextDisabled = nextDate > todayKey;
 
   const [{ data: profilesData }, { data: attendanceData }, { count: openComplaintCount }] = await Promise.all([
     supabase
@@ -22,10 +30,10 @@ export default async function AdminDashboard() {
       .select("*")
       .eq("role", "EMPLOYEE")
       .order("full_name"),
-    // Also pull yesterday's rows — an evening/night shift that started
-    // before midnight is filed under yesterday's work_date, so a
-    // today-only fetch would miss anyone still mid-shift after midnight.
-    supabase.from("attendance").select("*").in("work_date", [yesterday, today]),
+    // Also pull the day before — an evening/night shift that started before
+    // midnight is filed under the previous day's work_date, so a
+    // selected-day-only fetch would miss anyone still mid-shift after midnight.
+    supabase.from("attendance").select("*").in("work_date", [prevDate, dateKey]),
     supabase.from("complaints").select("*", { count: "exact", head: true }).eq("status", "OPEN"),
   ]);
 
@@ -40,12 +48,12 @@ export default async function AdminDashboard() {
   }
 
   // Per employee: an open shift (still checked in) takes priority over
-  // whatever's dated today, since that's the one actually relevant right
-  // now regardless of which calendar day it started on.
+  // whatever's dated on the selected day, since that's the one actually
+  // relevant regardless of which calendar day it started on.
   function currentRecordFor(userId: string): Attendance | undefined {
     const recs = recordsByUser.get(userId);
     if (!recs) return undefined;
-    return recs.find((r) => r.check_in && !r.check_out) ?? recs.find((r) => r.work_date === today);
+    return recs.find((r) => r.check_in && !r.check_out) ?? recs.find((r) => r.work_date === dateKey);
   }
 
   const byUser = new Map(employees.map((e) => [e.id, currentRecordFor(e.id)]));
@@ -56,9 +64,19 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-navy">Hi, {admin.full_name.split(" ")[0]} 👋</h1>
-        <p className="mt-1 text-sm text-slate-500">{formatDate(today)}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-navy">Hi, {admin.full_name.split(" ")[0]} 👋</h1>
+          <p className="mt-1 text-sm text-slate-500">{formatDate(dateKey)}</p>
+        </div>
+        <DateNav
+          basePath="/admin"
+          dateKey={dateKey}
+          prevDate={prevDate}
+          nextDate={nextDate}
+          nextDisabled={nextDisabled}
+          todayKey={todayKey}
+        />
       </div>
 
       {!!openComplaintCount && (
@@ -75,19 +93,19 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Employees" value={employees.length} icon={<Users className="h-5 w-5" />} />
         <StatCard
-          label="Present today"
+          label={isToday ? "Present today" : "Present"}
           value={presentCount}
           accent="text-emerald-600"
           icon={<UserCheck className="h-5 w-5" />}
         />
         <StatCard
-          label="Late today"
+          label={isToday ? "Late today" : "Late"}
           value={lateCount}
           accent="text-amber-600"
           icon={<Clock3 className="h-5 w-5" />}
         />
         <StatCard
-          label="Not in yet"
+          label={isToday ? "Not in yet" : "Absent"}
           value={absentCount < 0 ? 0 : absentCount}
           accent="text-red-500"
           icon={<UserX className="h-5 w-5" />}
@@ -96,7 +114,9 @@ export default async function AdminDashboard() {
 
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="font-semibold text-navy">Today&apos;s attendance</h2>
+          <h2 className="font-semibold text-navy">
+            {isToday ? "Today's attendance" : `Attendance — ${formatDate(dateKey)}`}
+          </h2>
           <Link href="/admin/employees" className="text-sm font-semibold text-brand-600 hover:underline">
             View all employees →
           </Link>

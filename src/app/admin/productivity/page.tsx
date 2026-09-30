@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/StatCard";
-import { DateNav } from "./DateNav";
+import { DateNav } from "@/components/DateNav";
 import { ProductivityOverviewTable } from "./ProductivityOverviewTable";
 import { NeedsCategorization } from "./NeedsCategorization";
 import { FlaggedSessionsPanel } from "./FlaggedSessionsPanel";
@@ -87,7 +87,14 @@ export default async function AdminProductivityPage({ searchParams }: { searchPa
           <h1 className="text-2xl font-bold text-navy">Productivity</h1>
           <p className="mt-1 text-sm text-slate-500">App activity tracked while your team is working.</p>
         </div>
-        <DateNav dateKey={dateKey} prevDate={prevDate} nextDate={nextDate} nextDisabled={nextDisabled} todayKey={todayKey} />
+        <DateNav
+          basePath="/admin/productivity"
+          dateKey={dateKey}
+          prevDate={prevDate}
+          nextDate={nextDate}
+          nextDisabled={nextDisabled}
+          todayKey={todayKey}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

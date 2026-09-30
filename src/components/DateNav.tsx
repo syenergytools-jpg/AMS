@@ -4,12 +4,15 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function DateNav({
+  basePath,
   dateKey,
   prevDate,
   nextDate,
   nextDisabled,
   todayKey,
 }: {
+  /** Route to navigate within, e.g. "/admin/productivity" — the date is appended as ?date=. */
+  basePath: string;
   dateKey: string;
   prevDate: string;
   nextDate: string;
@@ -19,7 +22,7 @@ export function DateNav({
   const router = useRouter();
 
   function goTo(date: string) {
-    router.push(`/admin/productivity?date=${date}`);
+    router.push(`${basePath}?date=${date}`);
   }
 
   return (
