@@ -3,12 +3,43 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { requestPasswordReset, resetPasswordWithCode } from "../actions";
-import { Loader2, Mail, KeyRound } from "lucide-react";
+import { requestPasswordReset, resetPasswordWithCode, verifyResetCode } from "../actions";
+import { Loader2, Mail, KeyRound, ShieldCheck } from "lucide-react";
+
+type Step = "email" | "code" | "password";
+
+const HEADINGS: Record<Step, { title: string; subtitle: string }> = {
+  email: {
+    title: "Forgot your password?",
+    subtitle: "Enter your work email and we'll send you a reset code.",
+  },
+  code: {
+    title: "Enter the code",
+    subtitle: "Check your inbox for the 6-digit code we sent.",
+  },
+  password: {
+    title: "Set a new password",
+    subtitle: "Choose a new password for your account.",
+  },
+};
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-red-100 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{message}</div>
+  );
+}
+
+function SuccessBanner({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700">
+      {message}
+    </div>
+  );
+}
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +63,21 @@ export default function ForgotPasswordPage() {
     setStep("code");
   }
 
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const res = await verifyResetCode(email, code);
+    setLoading(false);
+    if (res?.error) {
+      setError(res.error);
+      return;
+    }
+    setInfo(null);
+    setStep("password");
+  }
+
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -44,30 +90,39 @@ export default function ForgotPasswordPage() {
     const res = await resetPasswordWithCode(email, code, password);
     setLoading(false);
     if (res?.error) {
+      // The code can expire between verifying it and submitting the new
+      // password — send them back to enter a fresh one.
+      if (res.codeInvalid) {
+        setCode("");
+        setPassword("");
+        setConfirmPassword("");
+        setStep("code");
+      }
       setError(res.error);
       return;
     }
     router.push("/login");
   }
 
+  function startOver() {
+    setStep("email");
+    setCode("");
+    setPassword("");
+    setConfirmPassword("");
+    setError(null);
+    setInfo(null);
+  }
+
+  const { title, subtitle } = HEADINGS[step];
+
   return (
     <div>
-      <h2 className="text-2xl font-bold text-navy">
-        {step === "email" ? "Forgot your password?" : "Enter the code"}
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        {step === "email"
-          ? "Enter your work email and we'll send you a reset code."
-          : "Check your inbox for a 6-digit code, then set a new password."}
-      </p>
+      <h2 className="text-2xl font-bold text-navy">{title}</h2>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
 
-      {step === "email" ? (
+      {step === "email" && (
         <form onSubmit={handleRequestCode} className="mt-8 space-y-5">
-          {error && (
-            <div className="rounded-lg border border-red-100 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">
-              {error}
-            </div>
-          )}
+          {error && <ErrorBanner message={error} />}
           <div>
             <label className="label">Work email</label>
             <input
@@ -85,24 +140,20 @@ export default function ForgotPasswordPage() {
             Send reset code
           </button>
         </form>
-      ) : (
-        <form onSubmit={handleResetPassword} className="mt-8 space-y-5">
-          {info && !error && (
-            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700">
-              {info}
-            </div>
-          )}
-          {error && (
-            <div className="rounded-lg border border-red-100 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">
-              {error}
-            </div>
-          )}
+      )}
+
+      {step === "code" && (
+        <form onSubmit={handleVerifyCode} className="mt-8 space-y-5">
+          {info && !error && <SuccessBanner message={info} />}
+          {error && <ErrorBanner message={error} />}
           <div>
             <label className="label">Reset code</label>
             <input
               type="text"
               required
+              autoFocus
               inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={6}
               className="input"
               placeholder="123456"
@@ -110,11 +161,29 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             />
           </div>
+          <button type="submit" disabled={loading || code.length < 6} className="btn-primary w-full">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Verify code
+          </button>
+          <button
+            type="button"
+            onClick={startOver}
+            className="w-full text-center text-sm font-medium text-slate-500 hover:underline"
+          >
+            Use a different email
+          </button>
+        </form>
+      )}
+
+      {step === "password" && (
+        <form onSubmit={handleResetPassword} className="mt-8 space-y-5">
+          {error ? <ErrorBanner message={error} /> : <SuccessBanner message="Code verified. You can set a new password now." />}
           <div>
             <label className="label">New password</label>
             <input
               type="password"
               required
+              autoFocus
               minLength={6}
               autoComplete="new-password"
               className="input"
@@ -139,17 +208,6 @@ export default function ForgotPasswordPage() {
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
             Reset password
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStep("email");
-              setError(null);
-              setInfo(null);
-            }}
-            className="w-full text-center text-sm font-medium text-slate-500 hover:underline"
-          >
-            Use a different email
           </button>
         </form>
       )}

@@ -52,19 +52,14 @@ export async function requestPasswordReset(email: string) {
 }
 
 /**
- * Employee submits the emailed code plus a new password. The code must
- * match the most recent one issued for that account, be unused, and not be
- * expired — using it marks it used so it can't be replayed.
+ * The account's most recent reset code, if it matches `code`, hasn't been
+ * used, and hasn't expired. Both verifyResetCode and resetPasswordWithCode
+ * go through this, so the final password change never trusts that an
+ * earlier verification step happened.
  */
-export async function resetPasswordWithCode(email: string, code: string, newPassword: string) {
-  const trimmed = email.trim().toLowerCase();
-  const trimmedCode = code.trim();
-  if (!trimmed || !trimmedCode) return { error: "Enter the code from your email." };
-  if (newPassword.length < 6) return { error: "Password must be at least 6 characters." };
-
-  const admin = createAdminClient();
-  const { data: profile } = await admin.from("profiles").select("id").eq("email", trimmed).limit(1).maybeSingle();
-  if (!profile) return { error: "Invalid or expired code." };
+async function findValidResetCode(admin: ReturnType<typeof createAdminClient>, email: string, code: string) {
+  const { data: profile } = await admin.from("profiles").select("id").eq("email", email).limit(1).maybeSingle();
+  if (!profile) return null;
 
   const { data: reset } = await admin
     .from("password_reset_codes")
@@ -74,14 +69,48 @@ export async function resetPasswordWithCode(email: string, code: string, newPass
     .limit(1)
     .maybeSingle();
 
-  if (!reset || reset.used_at || reset.code !== trimmedCode || new Date(reset.expires_at).getTime() < Date.now()) {
-    return { error: "Invalid or expired code." };
+  if (!reset || reset.used_at || reset.code !== code || new Date(reset.expires_at).getTime() < Date.now()) {
+    return null;
   }
+  return { userId: profile.id as string, resetId: reset.id as string };
+}
 
-  const { error: updateErr } = await admin.auth.admin.updateUserById(profile.id, { password: newPassword });
+/**
+ * Checks the emailed code on its own, so the form can ask for the new
+ * password only once the code is known to be good. Doesn't consume the
+ * code — resetPasswordWithCode re-checks and consumes it.
+ */
+export async function verifyResetCode(email: string, code: string) {
+  const trimmed = email.trim().toLowerCase();
+  const trimmedCode = code.trim();
+  if (!trimmed || !trimmedCode) return { error: "Enter the code from your email." };
+
+  const found = await findValidResetCode(createAdminClient(), trimmed, trimmedCode);
+  if (!found) return { error: "Invalid or expired code." };
+
+  return { ok: true };
+}
+
+/**
+ * Employee submits the emailed code plus a new password. The code is
+ * re-validated here (it may have expired since verifyResetCode ran) and
+ * marked used so it can't be replayed. `codeInvalid` tells the form to send
+ * the employee back to the code step rather than stay on the password step.
+ */
+export async function resetPasswordWithCode(email: string, code: string, newPassword: string) {
+  const trimmed = email.trim().toLowerCase();
+  const trimmedCode = code.trim();
+  if (!trimmed || !trimmedCode) return { error: "Enter the code from your email.", codeInvalid: true };
+  if (newPassword.length < 6) return { error: "Password must be at least 6 characters." };
+
+  const admin = createAdminClient();
+  const found = await findValidResetCode(admin, trimmed, trimmedCode);
+  if (!found) return { error: "Invalid or expired code.", codeInvalid: true };
+
+  const { error: updateErr } = await admin.auth.admin.updateUserById(found.userId, { password: newPassword });
   if (updateErr) return { error: updateErr.message };
 
-  await admin.from("password_reset_codes").update({ used_at: new Date().toISOString() }).eq("id", reset.id);
+  await admin.from("password_reset_codes").update({ used_at: new Date().toISOString() }).eq("id", found.resetId);
 
   return { ok: true };
 }
