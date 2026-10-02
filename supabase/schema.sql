@@ -141,6 +141,20 @@ create index if not exists complaints_user_idx on public.complaints (user_id);
 create index if not exists complaints_status_idx on public.complaints (status);
 
 -- ---------------------------------------------------------------------------
+-- 2f. PASSWORD RESET CODES  (short-lived, emailed via Resend)
+-- ---------------------------------------------------------------------------
+create table if not exists public.password_reset_codes (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles (id) on delete cascade,
+  code        text not null,
+  expires_at  timestamptz not null,
+  used_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists password_reset_codes_user_idx on public.password_reset_codes (user_id);
+
+-- ---------------------------------------------------------------------------
 -- 3. is_admin()  — SECURITY DEFINER avoids RLS recursion on profiles
 -- ---------------------------------------------------------------------------
 create or replace function public.is_admin()
@@ -164,6 +178,7 @@ alter table public.salary_slips  enable row level security;
 alter table public.leave_requests enable row level security;
 alter table public.notifications enable row level security;
 alter table public.complaints enable row level security;
+alter table public.password_reset_codes enable row level security;
 
 -- profiles -------------------------------------------------------------------
 drop policy if exists "read own or admin reads all" on public.profiles;
@@ -261,6 +276,11 @@ create policy "insert own complaint" on public.complaints
 drop policy if exists "admin resolves any complaint" on public.complaints;
 create policy "admin resolves any complaint" on public.complaints
   for update using (public.is_admin()) with check (public.is_admin());
+
+-- password reset codes --------------------------------------------------------
+-- No public policies at all: a forgot-password request happens before the
+-- employee has a session, so there's no auth.uid() to scope a policy to —
+-- every read/write goes through the service-role key instead.
 
 -- ---------------------------------------------------------------------------
 -- 5. STORAGE bucket for profile photos (public read)

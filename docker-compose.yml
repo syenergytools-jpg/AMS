@@ -17,6 +17,8 @@ services:
       # Server-only secret — never a build arg, so it never ends up baked into
       # an image layer. Supplied purely at container-start time.
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
 
   # Optional — only starts with `docker compose --profile zkteco up -d`.
   # Only useful on a host with real network access to the K50 (see
